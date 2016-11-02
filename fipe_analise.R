@@ -19,6 +19,7 @@ fipe.df <- load_fipe_DF(download_dir)
 
 # adicionando colunas
 fipe.df$moeda <- str_sub(fipe.df$Valor, 1, 2)
+fipe.df$Valor.formatado <- fipe.df$Valor
 fipe.df$Valor <- as.numeric(str_replace(str_replace(str_sub(fipe.df$Valor, 4), "[.]", ""), ",", "."))
 fipe.df$MesDatabase <- as.Date(paste0("01 ", fipe.df$MesReferencia), "%d %B de %Y")
 fipe.df$ZeroKM <- fipe.df$AnoModelo == 32000
@@ -34,19 +35,24 @@ split_modelo <- function(modelo){
 fipe.df$Prefixo.modelo <- sapply(fipe.df$Modelo, split_modelo)
 fipe.df %>% select(Modelo, Prefixo.modelo)
 
-faixa_valor <- function(valor){
+faixa_valor <- function(valor, indice = 1){
 
-        faixas <- seq(from = 10, to = 100, by = 10)
-        valor <- 50
+        faixa_superior <- c(seq(from = 10, to = 100, by = 10),
+                    seq(from = 200, to = 500, by = 100))
         
-        m <- cbind(faixas - 10, 
-                   faixas, 
-                   valor > faixas - 10 & valor <= faixas,
-                   paste("de", faixas - 10, "a", faixas,"mil"))
+        faixa_inferior <- c(0, faixa_superior)
+        faixa_inferior <- faixa_inferior[-length(faixa_inferior)]
         
-        m[ m[,3] == 1]
+        faixa_id <- 1:length(faixa_superior)
+        m <- cbind(faixa_id,
+                   faixa_inferior,
+                   faixa_superior,
+                   valor > faixa_inferior & valor <= faixa_superior,
+                   paste("de", faixa_inferior, "a", faixa_superior,"mil"))
+        
+        return(m[ m[,4] == "TRUE", indice])
 }
 
-fipe.df[ fipe.df$Valor == max(fipe.df$Valor), ]
-unique(fipe.df$AnoModelo)
-
+fipe.df$faixa.id <- sapply(as.integer(fipe.df$Valor / 1000), faixa_valor, 1)
+fipe.df$faixa.valor <- sapply(as.integer(fipe.df$Valor / 1000), faixa_valor, 5)
+fipe.df %>% select(Marca, Prefixo.modelo, Valor.formatado, faixa.valor) 
